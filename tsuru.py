@@ -1,127 +1,159 @@
 #!/usr/bin/env python3
 
 import cairo
+import shapely
 import random
+from shapely.affinity import translate
+from shapely.geometry import *
+from shapely.ops import unary_union, polygonize, linemerge
+import itertools
+from utils.geom import *
 
 piece_size=45
-piece_spacing=5
+piece_spacing=3
+piece_outer_spacing=7.5
 piece_arc=10
-grid_arc=2
+grid_arc=3
 grid_size=6
-piece_distance=0.5
+piece_distance=0
 entry_distance = piece_size/3
 
-total_size = grid_size * piece_size + (grid_size+1) * piece_spacing
+total_size = grid_size * piece_size + (grid_size-1) * piece_spacing + 2 * piece_outer_spacing
 
-def enum_pieces(inner):
+def enum_pieces():
     for i in range(grid_size):
         for j in range(grid_size):
-            x = [ piece_spacing * (j + 1) + piece_size * j,  piece_spacing * (j + 1) + piece_size * (j + 1), ]
-            y = [ piece_spacing * (i + 1) + piece_size * i,  piece_spacing * (i + 1) + piece_size * (i + 1), ]
-            if inner:
-                x = [ x[0] + piece_distance, x[1] - piece_distance ]
-                y = [ y[0] + piece_distance, y[1] - piece_distance ]
+            x = [ piece_outer_spacing + (piece_size + piece_spacing) * j,  piece_outer_spacing + (piece_size + piece_spacing) * j + piece_size ]
+            y = [ piece_outer_spacing + (piece_size + piece_spacing) * i,  piece_outer_spacing + (piece_size + piece_spacing) * i + piece_size ]
             yield x, y
 
-def enum_connection_paths():
+def connection_paths():
     # Horizontal lines
     for i in range(grid_size):
         for j in range(grid_size+1):
-            x0 = (piece_spacing + piece_size) * j
-            x1 = x0 + piece_spacing
-            y = piece_spacing * (i + 1) + piece_size * i
+            x0 = 0 if j == 0 else (piece_spacing + piece_size) * j + piece_outer_spacing - piece_spacing
+            x1 = total_size if j == grid_size else (piece_spacing + piece_size) * j + piece_outer_spacing
+            y = piece_outer_spacing + i * (piece_spacing + piece_size)
 
             for pos in (piece_size - entry_distance) / 2, (piece_size + entry_distance) / 2:
-                yield (x0, x1), (y+pos, y+pos)
-                yield (y+pos, y+pos), (x0, x1)
+                yield bezier((x0, y+pos), (x1, y+pos))
+                yield bezier((y+pos, x0), (y+pos, x1))
 
-def draw_rounded(context, x, y, radius, hole=False):
-    """ draws rectangles with rounded (circular arc) corners """
-    from math import pi
+def piece_paths(piece_x, piece_y):
+    w = piece_x[1] - piece_x[0]
+    x0 = piece_x[0]
+    x1_3 = x0 + (w - entry_distance) / 2
+    x2_3 = x0 + (w + entry_distance) / 2
+    x1 = x0 + w
 
-    context.move_to(x[0], y[0] + radius)
-    if hole:
-        context.arc_negative(x[0] + radius, y[1] - radius, radius, 2*(pi/2), 1*(pi/2))
-        context.arc_negative(x[1] - radius, y[1] - radius, radius, 1*(pi/2), 0*(pi/2))
-        context.arc_negative(x[1] - radius, y[0] + radius, radius, 4*(pi/2), 3*(pi/2))
-        context.arc_negative(x[0] + radius, y[0] + radius, radius, 3*(pi/2), 2*(pi/2))
-    else:
-        context.arc(x[0] + radius, y[0] + radius, radius, 2*(pi/2), 3*(pi/2))
-        context.arc(x[1] - radius, y[0] + radius, radius, 3*(pi/2), 4*(pi/2))
-        context.arc(x[1] - radius, y[1] - radius, radius, 0*(pi/2), 1*(pi/2))
-        context.arc(x[0] + radius, y[1] - radius, radius, 1*(pi/2), 2*(pi/2))
-    context.close_path()
+    h = piece_y[1] - piece_y[0]
+    y0 = piece_y[0]
+    y1_3 = y0 + (h - entry_distance) / 2
+    y2_3 = y0 + (h + entry_distance) / 2
+    y1 = y0 + h
 
-with cairo.SVGSurface("example.svg", total_size, total_size) as surface:
+    entries = [
+      ((x1_3, y0), (0, 1)),
+      ((x2_3, y0), (0, 1)),
+      ((x1_3, y1), (0, -1)),
+      ((x2_3, y1), (0, -1)),
+      ((x0, y1_3), (1, 0)),
+      ((x0, y2_3), (1, 0)),
+      ((x1, y1_3), (-1, 0)),
+      ((x1, y2_3), (-1, 0)),
+    ]
+    random.shuffle(entries)
+
+    for i in range(0, len(entries), 2):
+        a, b = entries[i], entries[i+1]
+        scale = max(abs(a[0][0] - b[0][0]), abs(a[0][1] - b[0][1]))
+        if a[1] == b[1]:
+            scale *= .8
+        else:
+            scale *= 0.5
+
+        yield bezier(
+            (a[0][0], a[0][1]),
+            (a[0][0] + scale * a[1][0], a[0][1] + scale * a[1][1]),
+            (b[0][0] + scale * b[1][0], b[0][1] + scale * b[1][1]),
+            (b[0][0], b[0][1])
+        )
+
+with cairo.SVGSurface("example.svg", 3*total_size, total_size) as surface:
     surface.set_document_unit(cairo.SVGUnit.MM)
     context = cairo.Context(surface)
 
-    def draw_outline():
-        draw_rounded(context, x=[0,total_size], y=[0, total_size], radius=grid_arc)
-        draw_rounded(context, x=[total_size,2*total_size], y=[0, total_size], radius=grid_arc)
-        for piece_x, piece_y in enum_pieces(False):
-            draw_rounded(context, x=piece_x, y=piece_y, radius=grid_arc, hole=True)
-        for piece_x, piece_y in enum_pieces(True):
-            draw_rounded(context, x=piece_x, y=piece_y, radius=piece_arc, hole=True)
+    def get_outlines():
+        outline = rect([0, total_size], [0, total_size])
+        handles = []
+        for i in range(grid_size):
+            pos = piece_outer_spacing + piece_size/2 + i * (piece_spacing + piece_size)
+            handles += [
+                Point(-1, pos),
+                Point(total_size+1, pos),
+                Point(pos, -1),
+                Point(pos, total_size+1),
+            ]
+        outline -= MultiPoint(handles).buffer(3)
+        outline = rounded(outline, radius=grid_arc)
 
-    def draw_piece_paths(piece_x, piece_y):
-        w = piece_x[1] - piece_x[0]
-        x0 = piece_x[0]
-        x1_3 = x0 + (w - entry_distance) / 2
-        x2_3 = x0 + (w + entry_distance) / 2
-        x1 = x0 + w
+        for hx in (piece_outer_spacing/2, total_size-piece_outer_spacing/2):
+            for hy in (piece_outer_spacing/2, total_size-piece_outer_spacing/2):
+                outline = outline.difference(Point(hx, hy).buffer(1.5))
 
-        h = piece_y[1] - piece_y[0]
-        y0 = piece_y[0]
-        y1_3 = y0 + (h - entry_distance) / 2
-        y2_3 = y0 + (h + entry_distance) / 2
-        y1 = y0 + h
+        holes = []
+        pieces = []
+        for piece_x, piece_y in enum_pieces():
+            piece = rect(piece_x, piece_y)
+            holes.append(rounded(piece, radius=grid_arc))
+            pieces.append(rounded(piece.buffer(-piece_distance), radius=piece_arc))
 
-        entries = [
-          ((x1_3, y0), (0, 1)),
-          ((x2_3, y0), (0, 1)),
-          ((x1_3, y1), (0, -1)),
-          ((x2_3, y1), (0, -1)),
-          ((x0, y1_3), (1, 0)),
-          ((x0, y2_3), (1, 0)),
-          ((x1, y1_3), (-1, 0)),
-          ((x1, y2_3), (-1, 0)),
+        return MultiPolygon([outline.difference(unary_union(holes)), translate(outline, xoff=total_size), translate(outline, xoff=2*total_size)] + pieces)
+
+
+    def get_all_paths():
+        outer_boundary = rect([0, total_size], [0, total_size]).boundary
+        all_paths = [
+            outer_boundary
         ]
-        random.shuffle(entries)
+        all_paths += connection_paths()
 
-        for i in range(0, len(entries), 2):
-            a, b = entries[i], entries[i+1]
-            scale = max(abs(a[0][0] - b[0][0]), abs(a[0][1] - b[0][1]))
-            if a[1] == b[1]:
-                scale *= .8
-            else:
-                scale *= 0.5
+        for piece_x, piece_y in enum_pieces():
+            all_paths += piece_paths(piece_x, piece_y)
 
-            context.move_to(a[0][0], a[0][1])
-            context.curve_to(
-              a[0][0] + scale * a[1][0], a[0][1] + scale * a[1][1],
-              b[0][0] + scale * b[1][0], b[0][1] + scale * b[1][1],
-              b[0][0], b[0][1])
+        all_paths = linemerge(all_paths)
+        polygons = GeometryCollection(list(polygonize(unary_union(all_paths))))
 
+        ret = [all_paths]
+        for offset in [.75, 1.5]:
+            ret.append(polygons.buffer(-offset).boundary)
 
-    def draw_paths():
-        for x, y in enum_connection_paths():
-            context.move_to(x[0], y[0])
-            context.line_to(x[1], y[1])
+        #all_paths = list(itertools.chain(
+           #*[
+               #[
+                   #path.parallel_offset(offset, join_style=JOIN_STYLE.mitre)
+                   #for path in all_paths
+               #]
+               #for offset in (-1.5, -.75, 0, .75, 1.5)
+           #]
+        #))
 
-        for piece_x, piece_y in enum_pieces(True):
-            draw_piece_paths(piece_x, piece_y)
+        #all_paths = linemerge(all_paths)
 
-    draw_outline()
-    context.set_source_rgba(.8, .8, .8, 1)
+        #return GeometryCollection(all_paths)
+        return unary_union(ret) - outer_boundary
+
+    draw_shape(context, get_outlines())
+    context.set_source_rgba(.82, .71, .55, 1)
     context.fill()
 
-    draw_outline()
+    draw_shape(context, unary_union(get_outlines().boundary))
     context.set_source_rgba(0, 0, 0, 1)
-    context.set_line_width(.5)
+    context.set_line_width(.2)
     context.stroke()
 
-    draw_paths()
-    context.set_source_rgba(0, 0, 1, .5)
-    context.set_line_width(3)
+
+    draw_shape(context, get_all_paths())
+    context.set_source_rgba(0, 0, 0, .5)
+    context.set_line_width(.2)
     context.stroke()
