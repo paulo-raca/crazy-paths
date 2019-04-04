@@ -79,81 +79,100 @@ def piece_paths(piece_x, piece_y):
             (b[0][0], b[0][1])
         )
 
-with cairo.SVGSurface("example.svg", 3*total_size, total_size) as surface:
-    surface.set_document_unit(cairo.SVGUnit.MM)
-    context = cairo.Context(surface)
 
-    def get_outlines():
-        outline = rect([0, total_size], [0, total_size])
+
+def get_outline(hole_size=1.5, notches=True):
+    outline = rect([0, total_size], [0, total_size])
+    if notches:
         handles = []
         for i in range(grid_size):
-            pos = piece_outer_spacing + piece_size/2 + i * (piece_spacing + piece_size)
-            handles += [
-                Point(-1, pos),
-                Point(total_size+1, pos),
-                Point(pos, -1),
-                Point(pos, total_size+1),
-            ]
+            p = piece_outer_spacing + piece_size/2 + i * (piece_spacing + piece_size)
+            for pos in [p + entry_distance / 2, p - entry_distance / 2]:
+                handles += [
+                    Point(-1, pos),
+                    Point(total_size+1, pos),
+                    Point(pos, -1),
+                    Point(pos, total_size+1),
+                ]
         outline -= MultiPoint(handles).buffer(3)
-        outline = rounded(outline, radius=grid_arc)
+    outline = rounded(outline, radius=piece_outer_spacing/2)
 
+    if hole_size:
         for hx in (piece_outer_spacing/2, total_size-piece_outer_spacing/2):
             for hy in (piece_outer_spacing/2, total_size-piece_outer_spacing/2):
-                outline = outline.difference(Point(hx, hy).buffer(1.5))
+                outline -= Point(hx, hy).buffer(hole_size/2)
+    return outline
 
-        holes = []
-        pieces = []
-        for piece_x, piece_y in enum_pieces():
-            piece = rect(piece_x, piece_y)
-            holes.append(rounded(piece, radius=grid_arc))
-            pieces.append(rounded(piece.buffer(-piece_distance), radius=piece_arc))
+def get_cuts():
+    outline = get_outline()
 
-        return MultiPolygon([outline.difference(unary_union(holes)), translate(outline, xoff=total_size), translate(outline, xoff=2*total_size)] + pieces)
+    holes = []
+    pieces = []
+    for piece_x, piece_y in enum_pieces():
+        piece = rect(piece_x, piece_y)
+        holes.append(rounded(piece, radius=grid_arc))
+        pieces.append(rounded(piece.buffer(-piece_distance), radius=piece_arc))
 
-
-    def get_all_paths():
-        outer_boundary = rect([0, total_size], [0, total_size]).boundary
-        all_paths = [
-            outer_boundary
-        ]
-        all_paths += connection_paths()
-
-        for piece_x, piece_y in enum_pieces():
-            all_paths += piece_paths(piece_x, piece_y)
-
-        all_paths = linemerge(all_paths)
-        polygons = GeometryCollection(list(polygonize(unary_union(all_paths))))
-
-        ret = [all_paths]
-        for offset in [.75, 1.5]:
-            ret.append(polygons.buffer(-offset).boundary)
-
-        #all_paths = list(itertools.chain(
-           #*[
-               #[
-                   #path.parallel_offset(offset, join_style=JOIN_STYLE.mitre)
-                   #for path in all_paths
-               #]
-               #for offset in (-1.5, -.75, 0, .75, 1.5)
-           #]
-        #))
-
-        #all_paths = linemerge(all_paths)
-
-        #return GeometryCollection(all_paths)
-        return unary_union(ret) - outer_boundary
-
-    draw_shape(context, get_outlines())
-    context.set_source_rgba(.82, .71, .55, 1)
-    context.fill()
-
-    draw_shape(context, unary_union(get_outlines().boundary))
-    context.set_source_rgba(0, 0, 0, 1)
-    context.set_line_width(.2)
-    context.stroke()
+    return MultiPolygon([outline.difference(unary_union(holes)), translate(outline, xoff=total_size), translate(get_outline(hole_size=1,  notches=False), xoff=2*total_size)] + pieces)
 
 
-    draw_shape(context, get_all_paths())
-    context.set_source_rgba(0, 0, 0, .5)
-    context.set_line_width(.2)
-    context.stroke()
+def get_all_paths():
+    outline = get_outline(hole_size=2)
+    all_paths = list(outline.boundary.geoms)
+    all_paths += connection_paths()
+
+    for piece_x, piece_y in enum_pieces():
+        all_paths += piece_paths(piece_x, piece_y)
+
+    all_paths = linemerge(all_paths)
+    polygons = GeometryCollection(list(polygonize(unary_union(all_paths))))
+
+    ret = [all_paths]
+    for offset in [.75, 1.5]:
+        ret.append(polygons.buffer(-offset).boundary)
+
+    return outline.intersection(unary_union(ret)) - outline.boundary
+
+
+def main():
+    cuts = get_cuts()
+    paths = get_all_paths()
+
+    with cairo.SVGSurface("pretty.svg", 3*total_size, total_size) as surface:
+        surface.set_document_unit(cairo.SVGUnit.MM)
+        context = cairo.Context(surface)
+
+        draw_shape(context, cuts)
+        context.set_source_rgba(.82, .71, .55, 1)
+        context.fill()
+
+        draw_shape(context, cuts.boundary)
+        context.set_source_rgba(0, 0, 0, 1)
+        context.set_line_width(.2)
+        context.stroke()
+
+        draw_shape(context, paths)
+        context.set_source_rgba(0, 0, 1, .5)
+        context.set_line_width(.2)
+        context.stroke()
+
+    with cairo.SVGSurface("cuts.svg", 3*total_size, total_size) as surface:
+        surface.set_document_unit(cairo.SVGUnit.MM)
+        context = cairo.Context(surface)
+
+        draw_shape(context, unary_union(cuts.boundary))
+        context.set_source_rgba(0, 0, 0, 1)
+        context.set_line_width(.1)
+        context.stroke()
+
+
+    with cairo.SVGSurface("paths.svg", 3*total_size, total_size) as surface:
+        surface.set_document_unit(cairo.SVGUnit.MM)
+        context = cairo.Context(surface)
+
+        draw_shape(context, paths)
+        context.set_source_rgba(0, 0, 1, 1)
+        context.set_line_width(.2)
+        context.stroke()
+
+main()
