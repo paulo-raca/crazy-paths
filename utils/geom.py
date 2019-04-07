@@ -1,6 +1,7 @@
 import math
 import functools
 from shapely.geometry import *
+from shapely.geometry.polygon import orient
 
 DEFAULT_TOLERANCE=.1
 
@@ -53,7 +54,12 @@ def rect(x, y):
     ])
 
 def draw_shape(cairo_context, shape):
-    def draw_coords(coords, close):
+    def draw_coords(coords, close, ccw=True):
+
+        # Force proper orientation of lines
+        if close:
+            coords = orient(Polygon(coords), sign=1 if ccw else -1).exterior.coords
+
         for i, p in enumerate(coords):
             if i == 0:
                 cairo_context.move_to(*p)
@@ -75,6 +81,6 @@ def draw_shape(cairo_context, shape):
         elif isinstance(shape, Polygon):
             draw_coords(shape.exterior.coords, close=True)
             for interior in shape.interiors:
-                draw_coords(interior.coords, close=True)
+                draw_coords(interior.coords, close=True, ccw=False)
 
     draw_internal(shape)
