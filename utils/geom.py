@@ -1,5 +1,7 @@
 import math
 import functools
+
+from collections import defaultdict
 from shapely.geometry import *
 from shapely.geometry.polygon import orient
 
@@ -84,3 +86,38 @@ def draw_shape(cairo_context, shape):
                 draw_coords(interior.coords, close=True, ccw=False)
 
     draw_internal(shape)
+
+def compose(*geoms):
+    geom_by_type = defaultdict(list)
+
+    def visit(geom):
+        if isinstance(geom, (Point, LineString, Polygon, LinearRing)):
+            geom_by_type[type(geom)].append(geom)
+        elif isinstance(geom, (MultiPoint, MultiLineString, MultiPolygon, GeometryCollection)):
+            for x in geom.geoms:
+                visit(x)
+        else:
+            # Assume it is an iterator-of-geometries
+            for x in geom:
+                visit(x)
+
+    for geom in geoms:
+        visit(geom)
+
+    ret = []
+    for geom_type, geoms in geom_by_type.items():
+        if len(geoms) == 1:
+            ret += geoms
+        if geom_type == Point:
+            ret.append(MultiPoint(geoms))
+        elif geom_type == LineString:
+            ret.append(MultiLineString(geoms))
+        elif geom_type == Polygon:
+            ret.append(MultiPolygon(geoms))
+        else:
+            ret += geoms
+
+    if len(ret) == 1:
+        return ret[0]
+    else:
+        return GeometryCollection(ret)
