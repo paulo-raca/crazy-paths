@@ -18,7 +18,7 @@ grid_size = 6
 piece_distance = 0
 border_distance = 0
 entry_distance = (piece_size + piece_spacing)/3
-parallel_distances = [.75, 1.5]
+parallel_distances = [piece_spacing/4, 2*piece_spacing/4]
 path_to_edge_distance = piece_spacing + parallel_distances[-1]
 slots_height = piece_size/4
 slots_line_height = piece_size/10
@@ -147,18 +147,26 @@ def get_cuts():
 
 
 def get_all_paths():
-    all_paths = list(connection_paths())
+    title = compose(
+        text("Caminhos   ", scale=1, translate=(2.5*total_width, .4 * total_height)),
+        text("   Malucos", scale=1, translate=(2.5*total_width,  .6 * total_height)),
+    )
+
+    all_paths = list(connection_paths()) + [title]
 
     for piece_x, piece_y in enum_pieces():
         all_paths += list(piece_paths(piece_x, piece_y))
 
     all_paths = unary_union(all_paths)
 
+
     ret = [all_paths]
-    for offset in [piece_spacing/4, 2*piece_spacing/4]:
+    for offset in parallel_distances:
         ret.append(all_paths.buffer(offset).boundary)
 
-    return compose(ret) & get_outline(border = False)
+    signature = text("Paulo Costa - Abril/2019", scale=.2, translate=(3*total_width - handle_size - 2 * piece_spacing, total_height - 2 * piece_spacing), align=-1, valign=-1)
+
+    return compose(ret, signature)
 
 
 def main():
