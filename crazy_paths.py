@@ -87,7 +87,7 @@ def piece_paths(piece_x, piece_y):
 
 
 
-def get_outline(border=True, only_middle=False):
+def get_outline(border=True):
     outline = rect([0, total_width], [0, total_height])
     outline = rounded(outline, radius=2 * piece_spacing)
 
@@ -97,10 +97,7 @@ def get_outline(border=True, only_middle=False):
         inner_outline = outline.buffer(-piece_spacing)
         inner_outline = rounded(inner_outline, radius=piece_spacing + grid_arc)
 
-        if only_middle:
-            return inner_outline
-        else:
-            return compose(inner_outline, outline)
+        return compose(inner_outline, outline)
 
 def get_cuts():
     outline = get_outline()
