@@ -11,7 +11,7 @@ from utils.geom import *
 
 piece_size = 40
 piece_spacing = 3
-piece_outer_spacing = 6
+piece_outer_spacing = 2*piece_spacing
 piece_arc = 10
 grid_arc = 2
 grid_size = 6
@@ -23,23 +23,23 @@ path_to_edge_distance = piece_spacing + parallel_distances[-1]
 slots_height = piece_size/4
 slots_line_height = piece_size/10
 
-total_width = grid_size * piece_size + (grid_size-1) * piece_spacing + 2 * piece_outer_spacing
+total_width = grid_size * piece_size + (grid_size+3) * piece_spacing
 total_height = total_width + slots_height + (piece_spacing if slots_height else 0)
 
 def enum_pieces():
     for i in range(grid_size):
         for j in range(grid_size):
-            x = [ piece_outer_spacing + (piece_size + piece_spacing) * j,  piece_outer_spacing + (piece_size + piece_spacing) * j + piece_size ]
-            y = [ piece_outer_spacing + (piece_size + piece_spacing) * i,  piece_outer_spacing + (piece_size + piece_spacing) * i + piece_size ]
+            x = [ 2 * piece_spacing + (piece_size + piece_spacing) * j,  2 * piece_spacing + (piece_size + piece_spacing) * j + piece_size ]
+            y = [ 2 * piece_spacing + (piece_size + piece_spacing) * i,  2 * piece_spacing + (piece_size + piece_spacing) * i + piece_size ]
             yield x, y
 
 def connection_paths():
     # Horizontal lines
     for i in range(grid_size):
         for j in range(grid_size+1):
-            x0 = path_to_edge_distance if j == 0 else (piece_spacing + piece_size) * j + piece_outer_spacing - piece_spacing
-            x1 = total_width - path_to_edge_distance if j == grid_size else (piece_spacing + piece_size) * j + piece_outer_spacing
-            y = piece_outer_spacing + i * (piece_spacing + piece_size)
+            x0 = path_to_edge_distance if j == 0 else (piece_spacing + piece_size) * j + piece_spacing
+            x1 = total_width - path_to_edge_distance if j == grid_size else (piece_spacing + piece_size) * j + 2 * piece_spacing
+            y = 2 * piece_spacing + i * (piece_spacing + piece_size)
 
             for pos in (piece_size - entry_distance) / 2, (piece_size + entry_distance) / 2:
                 yield bezier((x0, y+pos), (x1, y+pos))
@@ -89,12 +89,12 @@ def piece_paths(piece_x, piece_y):
 
 def get_outline(border=True, only_middle=False):
     outline = rect([0, total_width], [0, total_height])
-    outline = rounded(outline, radius=piece_outer_spacing)
+    outline = rounded(outline, radius=2 * piece_spacing)
 
     if not border:
         return MultiPolygon([outline])
     else:
-        inner_outline = rect([piece_outer_spacing - piece_spacing, total_width - piece_outer_spacing + piece_spacing], [piece_outer_spacing - piece_spacing, total_height - piece_outer_spacing + piece_spacing])
+        inner_outline = outline.buffer(-piece_spacing)
         inner_outline = rounded(inner_outline, radius=piece_spacing + grid_arc)
 
         if only_middle:
