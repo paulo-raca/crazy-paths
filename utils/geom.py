@@ -1,9 +1,13 @@
 import math
 import functools
+import logging
 
 from collections import defaultdict
+from shapely import affinity
 from shapely.geometry import *
 from shapely.geometry.polygon import orient
+
+from . import hersheydata
 
 DEFAULT_TOLERANCE=.1
 
@@ -54,6 +58,41 @@ def rect(x, y):
         (x[1], y[1]),
         (x[0], y[1]),
     ])
+
+def text(text, font="futural", scale=1, translate=(0,0), align=0, valign=0):
+    font = getattr(hersheydata, font)
+    spacing = 3  # spacing between letters
+
+    x_offset = 0.
+    all_outlines = []
+    current_outline = None
+
+    letter_vals = (ord(q) - 32 for q in text)
+    for glyph in text:
+        glyph_val = ord(glyph) - 32
+        if glyph_val < 0 or glyph_val > 95:
+            logging.getLogger('hershey_text').warning(f"Skipping unsupported glyph '{glyph}'")
+            x_offset += 2 * spacing
+        else:
+            glyph_path = font[glyph_val].split(" ")
+            offset1, offset2 = float(glyph_path[0]), float(glyph_path[1])
+
+            x_offset -= offset1
+            for cmd, x, y in zip(*((iter(glyph_path[2:]),)*3)):
+                if cmd == 'M':
+                    if current_outline:
+                        all_outlines.append(current_outline)
+                    current_outline = []
+                current_outline.append((x_offset+float(x), float(y)))
+            if current_outline:
+                all_outlines.append(current_outline)
+            x_offset += offset2
+
+    ret = MultiLineString(all_outlines)
+    ret = affinity.translate(ret, xoff=x_offset * .5 * (align - 1), yoff=16 * .5 * (valign - 1) )
+    ret = affinity.scale(ret, xfact=scale, yfact=scale, origin=(0,0))
+    ret = affinity.translate(ret, xoff=translate[0], yoff=translate[1])
+    return ret
 
 def draw_shape(cairo_context, shape):
     def draw_coords(coords, close, ccw=True):
