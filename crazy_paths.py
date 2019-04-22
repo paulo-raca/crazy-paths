@@ -9,15 +9,17 @@ from shapely.ops import unary_union, polygonize, linemerge, split
 import itertools
 from utils.geom import *
 
-piece_size=44
-piece_spacing=4
-piece_outer_spacing=8
-piece_arc=10
-grid_arc=3
-grid_size=6
-piece_distance=0
-border_distance=0
+piece_size = 44
+piece_spacing = 4
+piece_outer_spacing = 8
+piece_arc = 10
+grid_arc = 3
+grid_size = 6
+piece_distance = 0
+border_distance = 0
 entry_distance = piece_size/3
+path_to_edge_distance = 0
+parallel_distances = [.75, 1.5]
 
 total_size = grid_size * piece_size + (grid_size-1) * piece_spacing + 2 * piece_outer_spacing
 
@@ -32,8 +34,8 @@ def connection_paths():
     # Horizontal lines
     for i in range(grid_size):
         for j in range(grid_size+1):
-            x0 = - 100 if j == 0 else (piece_spacing + piece_size) * j + piece_outer_spacing - piece_spacing
-            x1 = total_size + 100 if j == grid_size else (piece_spacing + piece_size) * j + piece_outer_spacing
+            x0 = path_to_edge_distance if j == 0 else (piece_spacing + piece_size) * j + piece_outer_spacing - piece_spacing
+            x1 = total_size - path_to_edge_distance if j == grid_size else (piece_spacing + piece_size) * j + piece_outer_spacing
             y = piece_outer_spacing + i * (piece_spacing + piece_size)
 
             for pos in (piece_size - entry_distance) / 2, (piece_size + entry_distance) / 2:
@@ -88,7 +90,7 @@ def get_outline(notches=False, border=True, only_middle=False):
         handles = []
         for i in range(grid_size):
             p = piece_outer_spacing + piece_size/2 + i * (piece_spacing + piece_size)
-            for pos in [p + entry_distance / 2, p - entry_distance / 2]:
+            for pos in parallel_distances:
                 handles += [
                     Point(-1, pos),
                     Point(total_size+1, pos),
@@ -141,21 +143,18 @@ def get_cuts():
 
 
 def get_all_paths():
-    outline = get_outline(border = False)
-    all_paths = [ box(-10, -10, 10+total_size, 10+total_size).boundary ]
-    all_paths += connection_paths()
+    all_paths = list(connection_paths())
 
     for piece_x, piece_y in enum_pieces():
-        all_paths += piece_paths(piece_x, piece_y)
+        all_paths += list(piece_paths(piece_x, piece_y))
 
-    all_paths = linemerge(all_paths)
-    polygons = GeometryCollection(list(polygonize(unary_union(all_paths))))
+    all_paths = unary_union(all_paths)
 
     ret = [all_paths]
-    for offset in [.75, 1.5]:
-        ret.append(polygons.buffer(-offset).boundary)
+    for offset in [piece_spacing/4, 2*piece_spacing/4]:
+        ret.append(all_paths.buffer(offset).boundary)
 
-    return outline & unary_union(ret)
+    return compose(ret) & get_outline(border = False)
 
 
 def main():
