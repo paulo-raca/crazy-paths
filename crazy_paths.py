@@ -9,11 +9,11 @@ from shapely.ops import unary_union, polygonize, linemerge, split
 import itertools
 from utils.geom import *
 
-piece_size = 44
-piece_spacing = 4
-piece_outer_spacing = 8
+piece_size = 40
+piece_spacing = 3
+piece_outer_spacing = 6
 piece_arc = 10
-grid_arc = 3
+grid_arc = 2
 grid_size = 6
 piece_distance = 0
 border_distance = 0
