@@ -87,22 +87,26 @@ def draw_shape(cairo_context, shape):
 
     draw_internal(shape)
 
-def compose(*geoms):
-    geom_by_type = defaultdict(list)
-
+def all_geoms(*geoms):
     def visit(geom):
         if isinstance(geom, (Point, LineString, Polygon, LinearRing)):
-            geom_by_type[type(geom)].append(geom)
+            yield geom
         elif isinstance(geom, (MultiPoint, MultiLineString, MultiPolygon, GeometryCollection)):
             for x in geom.geoms:
-                visit(x)
+                yield from visit(x)
         else:
             # Assume it is an iterator-of-geometries
             for x in geom:
-                visit(x)
+                yield from visit(x)
 
     for geom in geoms:
-        visit(geom)
+        yield from visit(geom)
+
+def compose(*geoms):
+    geom_by_type = defaultdict(list)
+
+    for geom in all_geoms(*geoms):
+        geom_by_type[type(geom)].append(geom)
 
     ret = []
     for geom_type, geoms in geom_by_type.items():

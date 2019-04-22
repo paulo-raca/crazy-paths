@@ -17,11 +17,14 @@ grid_arc = 2
 grid_size = 6
 piece_distance = 0
 border_distance = 0
-entry_distance = piece_size/3
-path_to_edge_distance = 0
+entry_distance = (piece_size + piece_spacing)/3
 parallel_distances = [.75, 1.5]
+path_to_edge_distance = piece_spacing + parallel_distances[-1]
+slots_height = piece_size/4
+slots_line_height = piece_size/10
 
-total_size = grid_size * piece_size + (grid_size-1) * piece_spacing + 2 * piece_outer_spacing
+total_width = grid_size * piece_size + (grid_size-1) * piece_spacing + 2 * piece_outer_spacing
+total_height = total_width + slots_height + (piece_spacing if slots_height else 0)
 
 def enum_pieces():
     for i in range(grid_size):
@@ -35,7 +38,7 @@ def connection_paths():
     for i in range(grid_size):
         for j in range(grid_size+1):
             x0 = path_to_edge_distance if j == 0 else (piece_spacing + piece_size) * j + piece_outer_spacing - piece_spacing
-            x1 = total_size - path_to_edge_distance if j == grid_size else (piece_spacing + piece_size) * j + piece_outer_spacing
+            x1 = total_width - path_to_edge_distance if j == grid_size else (piece_spacing + piece_size) * j + piece_outer_spacing
             y = piece_outer_spacing + i * (piece_spacing + piece_size)
 
             for pos in (piece_size - entry_distance) / 2, (piece_size + entry_distance) / 2:
@@ -85,7 +88,7 @@ def piece_paths(piece_x, piece_y):
 
 
 def get_outline(notches=False, border=True, only_middle=False):
-    outline = rect([0, total_size], [0, total_size])
+    outline = rect([0, total_width], [0, total_height])
     if notches:
         handles = []
         for i in range(grid_size):
@@ -93,9 +96,9 @@ def get_outline(notches=False, border=True, only_middle=False):
             for pos in parallel_distances:
                 handles += [
                     Point(-1, pos),
-                    Point(total_size+1, pos),
+                    Point(total_width+1, pos),
                     Point(pos, -1),
-                    Point(pos, total_size+1),
+                    Point(pos, total_width+1),
                 ]
         outline -= MultiPoint(handles).buffer(3)
     outline = rounded(outline, radius=piece_outer_spacing)
@@ -103,11 +106,11 @@ def get_outline(notches=False, border=True, only_middle=False):
     if not border:
         return MultiPolygon([outline])
     else:
-        inner_outline = rect([piece_outer_spacing - piece_spacing, total_size - piece_outer_spacing + piece_spacing], [piece_outer_spacing - piece_spacing, total_size - piece_outer_spacing + piece_spacing])
+        inner_outline = rect([piece_outer_spacing - piece_spacing, total_width - piece_outer_spacing + piece_spacing], [piece_outer_spacing - piece_spacing, total_height - piece_outer_spacing + piece_spacing])
         inner_outline = rounded(inner_outline, radius=piece_spacing + grid_arc)
 
-        corners = MultiPoint([(0,0), (0, total_size), (total_size, 0), (total_size, total_size)])
-        corners = corners.buffer(total_size / 3) & outline.boundary
+        corners = MultiPoint([(0,0), (0, total_width), (total_width, 0), (total_width, total_width)])
+        corners = corners.buffer(total_width / 3) & outline.boundary
         corners = corners.buffer(piece_outer_spacing - piece_spacing) & outline
         #corners = rounded(corners, radius=(piece_outer_spacing - piece_spacing)/3)
 
@@ -134,11 +137,27 @@ def get_cuts():
     holes = compose(holes)
     pieces = compose(pieces)
 
+    if slots_height:
+        slot_line = LineString([
+            (1.5*piece_spacing + entry_distance/2, total_height - 2*piece_spacing - slots_height / 2),
+            (total_width - 1.5*piece_spacing - entry_distance/2, total_height - 2*piece_spacing - slots_height / 2),
+        ])
+        slot_pieces = [
+            Point(
+                1.5*piece_spacing + i*entry_distance,
+                total_height - 2*piece_spacing - slots_height / 2
+            ).buffer(slots_height / 2)
+            for i in range(1, 3*grid_size)
+        ]
+
+        holes = compose(holes, slot_line.buffer(slots_line_height / 2).union(compose(slot_pieces)).buffer(4).buffer(-4))
+        pieces = compose(pieces, slot_pieces)
+
     return compose(
-        pieces.geoms,
-        [ g - holes for g in outline.geoms ],
-        translate(outline, xoff=total_size),
-        translate(get_outline(border=False), xoff=2*total_size)
+        pieces,
+        [ g - holes for g in all_geoms(outline) ],
+        translate(outline, xoff=total_width),
+        translate(get_outline(border=False), xoff=2*total_width)
     )
 
 
@@ -161,7 +180,7 @@ def main():
     cuts = get_cuts()
     paths = get_all_paths()
 
-    with cairo.SVGSurface("preview.svg", 3*total_size, total_size) as surface:
+    with cairo.SVGSurface("preview.svg", 3*total_width, total_height) as surface:
         surface.set_document_unit(cairo.SVGUnit.MM)
         context = cairo.Context(surface)
 
@@ -179,7 +198,7 @@ def main():
         context.set_line_width(.2)
         context.stroke()
 
-    with cairo.SVGSurface("cut.svg", 3*total_size, total_size) as surface:
+    with cairo.SVGSurface("cut.svg", 3*total_width, total_height) as surface:
         surface.set_document_unit(cairo.SVGUnit.MM)
         context = cairo.Context(surface)
 
@@ -188,7 +207,7 @@ def main():
         context.set_line_width(.1)
         context.stroke()
 
-    with cairo.SVGSurface("draw.svg", 3*total_size, total_size) as surface:
+    with cairo.SVGSurface("draw.svg", 3*total_width, total_height) as surface:
         surface.set_document_unit(cairo.SVGUnit.MM)
         context = cairo.Context(surface)
 
