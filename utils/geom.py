@@ -44,7 +44,7 @@ def bezier(*points, tolerance=DEFAULT_TOLERANCE):
     return LineString(ret).simplify(tolerance=tolerance)
 
 def rounded(geom, radius, tolerance=DEFAULT_TOLERANCE):
-    resolution = max(2, int(2 * math.pi * radius / tolerance / 4))
+    resolution = max(16, int(2 * math.pi * radius / tolerance / 4))
     return geom.buffer(-radius, resolution=resolution).buffer(+radius, resolution=resolution)
 
 def rect(x, y):

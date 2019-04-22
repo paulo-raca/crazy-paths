@@ -22,6 +22,7 @@ parallel_distances = [.75, 1.5]
 path_to_edge_distance = piece_spacing + parallel_distances[-1]
 slots_height = piece_size/4
 slots_line_height = piece_size/10
+handle_size=10
 
 total_width = grid_size * piece_size + (grid_size+3) * piece_spacing
 total_height = total_width + slots_height + (piece_spacing if slots_height else 0)
@@ -91,13 +92,23 @@ def get_outline(border=True):
     outline = rect([0, total_width], [0, total_height])
     outline = rounded(outline, radius=2 * piece_spacing)
 
+    inner_outline = outline.buffer(-piece_spacing)
+    inner_outline = rounded(inner_outline, radius=piece_spacing + grid_arc)
+
+
+    handles = compose([
+        rect([0, piece_spacing], [total_height-piece_spacing, total_height]),
+        rect([total_width, total_width-piece_spacing], [total_height-piece_spacing, total_height]),
+    ]).buffer(handle_size - piece_spacing) & outline
+
+    outline -= handles
+    inner_outline |= handles
+    inner_outline = rounded(inner_outline, -piece_spacing)
+
     if not border:
         return MultiPolygon([outline])
     else:
-        inner_outline = outline.buffer(-piece_spacing)
-        inner_outline = rounded(inner_outline, radius=piece_spacing + grid_arc)
-
-        return compose(inner_outline, outline)
+        return compose(inner_outline, outline - inner_outline)
 
 def get_cuts():
     outline = get_outline()
