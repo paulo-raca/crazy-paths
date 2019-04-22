@@ -87,20 +87,8 @@ def piece_paths(piece_x, piece_y):
 
 
 
-def get_outline(notches=False, border=True, only_middle=False):
+def get_outline(border=True, only_middle=False):
     outline = rect([0, total_width], [0, total_height])
-    if notches:
-        handles = []
-        for i in range(grid_size):
-            p = piece_outer_spacing + piece_size/2 + i * (piece_spacing + piece_size)
-            for pos in parallel_distances:
-                handles += [
-                    Point(-1, pos),
-                    Point(total_width+1, pos),
-                    Point(pos, -1),
-                    Point(pos, total_width+1),
-                ]
-        outline -= MultiPoint(handles).buffer(3)
     outline = rounded(outline, radius=piece_outer_spacing)
 
     if not border:
@@ -109,21 +97,10 @@ def get_outline(notches=False, border=True, only_middle=False):
         inner_outline = rect([piece_outer_spacing - piece_spacing, total_width - piece_outer_spacing + piece_spacing], [piece_outer_spacing - piece_spacing, total_height - piece_outer_spacing + piece_spacing])
         inner_outline = rounded(inner_outline, radius=piece_spacing + grid_arc)
 
-        corners = MultiPoint([(0,0), (0, total_width), (total_width, 0), (total_width, total_width)])
-        corners = corners.buffer(total_width / 3) & outline.boundary
-        corners = corners.buffer(piece_outer_spacing - piece_spacing) & outline
-        #corners = rounded(corners, radius=(piece_outer_spacing - piece_spacing)/3)
-
-        border_shape = corners
-        border_shape = outline - inner_outline.buffer(piece_distance)
-
-        middle = inner_outline
-        outer = outline - middle.buffer(border_distance)
-
         if only_middle:
-            return middle
+            return inner_outline
         else:
-            return compose(outer, middle)
+            return compose(inner_outline, outline)
 
 def get_cuts():
     outline = get_outline()
