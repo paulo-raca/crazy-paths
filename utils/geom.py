@@ -63,6 +63,14 @@ def text(text, font="futural", scale=1, translate=(0,0), align=0, valign=0):
     font = getattr(hersheydata, font)
     spacing = 3  # spacing between letters
 
+    # Look into zero to get vertical metrics
+    vref_glyph = font[ord("0") - 32]
+    vref_glyph_y = [float(y) for y in vref_glyph.split(" ")[4::3]]
+    vref_min = min(vref_glyph_y)
+    vref_max = max(vref_glyph_y)
+    vref_mean = (vref_max + vref_min) / 2
+    vref_range = (vref_max - vref_min)
+
     x_offset = 0.
     all_outlines = []
     current_outline = None
@@ -89,7 +97,10 @@ def text(text, font="futural", scale=1, translate=(0,0), align=0, valign=0):
             x_offset += offset2
 
     ret = MultiLineString(all_outlines)
-    ret = affinity.translate(ret, xoff=x_offset * .5 * (align - 1), yoff=16 * .5 * (valign - 1) )
+    ret = affinity.translate(
+            ret,
+            xoff=x_offset * .5 * (align - 1),
+            yoff=-vref_min + vref_range * .5 * (valign - 1) )
     ret = affinity.scale(ret, xfact=scale, yfact=scale, origin=(0,0))
     ret = affinity.translate(ret, xoff=translate[0], yoff=translate[1])
     return ret
