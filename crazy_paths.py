@@ -166,7 +166,18 @@ def get_all_paths():
 
     signature = text("Paulo Costa - Abril/2019", scale=.2, translate=(3*total_width - handle_size - 2 * piece_spacing, total_height - 2 * piece_spacing), align=-1, valign=-1)
 
-    return compose(ret, signature)
+    slot_piece_labels = [
+        text(chr(ord("A") + i),
+             scale=.2,
+             translate=(
+                1.5*piece_spacing + (i+.5)*entry_distance,
+                total_height - 2*piece_spacing - slots_height / 2
+            )
+        )
+        for i in range(3*grid_size)
+    ]
+
+    return compose(ret, signature, slot_piece_labels)
 
 
 def main():
