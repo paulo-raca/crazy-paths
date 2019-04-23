@@ -124,15 +124,15 @@ def get_cuts():
 
     if slots_height:
         slot_line = LineString([
-            (1.5*piece_spacing + entry_distance/2, total_height - 2*piece_spacing - slots_height / 2),
-            (total_width - 1.5*piece_spacing - entry_distance/2, total_height - 2*piece_spacing - slots_height / 2),
+            (1.5*piece_spacing + .5 * entry_distance, total_height - 2*piece_spacing - slots_height / 2),
+            (total_width - 1.5*piece_spacing - .5 * entry_distance, total_height - 2*piece_spacing - slots_height / 2),
         ])
         slot_pieces = [
             Point(
-                1.5*piece_spacing + i*entry_distance,
+                1.5*piece_spacing + (i+.5)*entry_distance,
                 total_height - 2*piece_spacing - slots_height / 2
             ).buffer(slots_height / 2)
-            for i in range(1, 3*grid_size)
+            for i in range(3*grid_size)
         ]
 
         holes = compose(holes, slot_line.buffer(slots_line_height / 2).union(compose(slot_pieces)).buffer(4).buffer(-4))
