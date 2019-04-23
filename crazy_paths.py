@@ -18,7 +18,7 @@ grid_size = 6
 piece_distance = 0
 border_distance = 0
 entry_distance = (piece_size + piece_spacing)/3
-parallel_distances = [piece_spacing/4, 2*piece_spacing/4]
+parallel_distances = [.75, 1.5]
 path_to_edge_distance = piece_spacing + parallel_distances[-1]
 slots_height = piece_size/4
 slots_line_height = piece_size/10
@@ -75,7 +75,7 @@ def piece_paths(piece_x, piece_y):
         a, b = entries[i], entries[i+1]
         scale = max(abs(a[0][0] - b[0][0]), abs(a[0][1] - b[0][1]))
         if a[1] == b[1]:
-            scale *= .8
+            scale *= .75
         else:
             scale *= 0.5
 
