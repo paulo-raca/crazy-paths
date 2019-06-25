@@ -27,12 +27,52 @@ handle_size=10
 total_width = grid_size * piece_size + (grid_size+3) * piece_spacing
 total_height = total_width + slots_height + (piece_spacing if slots_height else 0)
 
+# Piece layout:
+#     |  |
+#     0  1
+# --4      6--
+#
+# --5      7--
+#     2  3
+#     |  |
+default_piece_links = [
+  ((0, 1), (2,3), (4,5), (6,7)),
+  ((4, 0), (1,6), (7,3), (2,5)),
+  ((0, 2), (1,3), (4,6), (5,7)),
+  ((4, 0), (1,5), (2,6), (3,7)),
+  ((0, 4), (1,5), (2,7), (3,6)),
+  ((0, 5), (1,4), (2,7), (3,6)),
+  ((0, 7), (1,5), (2,6), (3,4)),
+  ((0, 3), (1,2), (4,7), (5,6)),
+  ((0, 7), (1,5), (6,2), (3,4)),
+  ((0, 3), (1,4), (6,5), (7,2)),
+  ((1, 2), (0,6), (4,7), (5,3)),
+  ((0, 5), (1,7), (2,4), (3,6)),
+  ((0, 5), (1,7), (2,6), (3,4)),
+  ((0, 7), (1,4), (6,3), (5,2)),
+]
+#random.shuffle(default_piece_links)
+
+def random_piece_links():
+    perm = list(range(8))
+    random.shuffle(perm)
+
+    return [
+        (perm[i], perm[i+1])
+        for i in range(0, len(perm), 2)
+    ]
+
 def enum_pieces():
     for i in range(grid_size):
         for j in range(grid_size):
             x = [ 2 * piece_spacing + (piece_size + piece_spacing) * j,  2 * piece_spacing + (piece_size + piece_spacing) * j + piece_size ]
             y = [ 2 * piece_spacing + (piece_size + piece_spacing) * i,  2 * piece_spacing + (piece_size + piece_spacing) * i + piece_size ]
             yield x, y
+
+def enum_piece_links():
+    yield from default_piece_links
+    while True:
+        yield random_piece_links()
 
 def connection_paths():
     # Horizontal lines
@@ -46,7 +86,8 @@ def connection_paths():
                 yield bezier((x0, y+pos), (x1, y+pos))
                 yield bezier((y+pos, x0), (y+pos, x1))
 
-def piece_paths(piece_x, piece_y):
+
+def piece_paths(piece_x, piece_y, piece_links):
     w = piece_x[1] - piece_x[0]
     x0 = piece_x[0]
     x1_3 = x0 + (w - entry_distance) / 2
@@ -69,10 +110,9 @@ def piece_paths(piece_x, piece_y):
       ((x1, y1_3), (-1, 0)),
       ((x1, y2_3), (-1, 0)),
     ]
-    random.shuffle(entries)
 
-    for i in range(0, len(entries), 2):
-        a, b = entries[i], entries[i+1]
+    for link in piece_links:
+        a, b = entries[link[0]], entries[link[1]]
         scale = max(abs(a[0][0] - b[0][0]), abs(a[0][1] - b[0][1]))
         if a[1] == b[1]:
             scale *= .75
@@ -154,8 +194,8 @@ def get_all_paths():
 
     all_paths = list(connection_paths()) + [title]
 
-    for piece_x, piece_y in enum_pieces():
-        all_paths += list(piece_paths(piece_x, piece_y))
+    for (piece_x, piece_y), piece_links in zip(enum_pieces(), enum_piece_links()):
+        all_paths += list(piece_paths(piece_x, piece_y, piece_links))
 
     all_paths = unary_union(all_paths)
 
