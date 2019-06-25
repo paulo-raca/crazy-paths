@@ -164,7 +164,7 @@ def get_all_paths():
     for offset in parallel_distances:
         ret.append(all_paths.buffer(offset).boundary)
 
-    signature = text("Paulo Costa - Abril/2019", scale=.2, translate=(3*total_width - handle_size - 2 * piece_spacing, total_height - 2 * piece_spacing), align=-1, valign=-1)
+    signature = text("Tio Paulo - Junho/2019", scale=.2, translate=(3*total_width - handle_size - 2 * piece_spacing, total_height - 2 * piece_spacing), align=-1, valign=-1)
 
     slot_piece_labels = [
         text(chr(ord("A") + i),
