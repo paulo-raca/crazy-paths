@@ -185,7 +185,7 @@ def get_main_board():
     for (piece_x, piece_y), piece_links in zip(enum_pieces(), enum_piece_links()):
         all_paths += list(piece_paths(piece_x, piece_y, piece_links))
 
-    all_paths = unary_union(all_paths)
+    all_paths = linemerge(all_paths)
 
 
     all_paths_offsets = [all_paths]
