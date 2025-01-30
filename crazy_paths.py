@@ -126,15 +126,12 @@ def piece_paths(piece_x, piece_y, piece_links):
             (b[0][0], b[0][1])
         )
 
-
-
 def get_outline(border=True):
     outline = rect([0, total_width], [0, total_height])
     outline = rounded(outline, radius=2 * piece_spacing)
 
     inner_outline = outline.buffer(-piece_spacing)
     inner_outline = rounded(inner_outline, radius=piece_spacing + grid_arc)
-
 
     handles = compose([
         rect([0, piece_spacing], [total_height-piece_spacing, total_height]),
@@ -146,13 +143,12 @@ def get_outline(border=True):
     inner_outline = rounded(inner_outline, -piece_spacing)
 
     if not border:
-        return MultiPolygon([outline])
+        return compose(outline)
     else:
         return compose(inner_outline, outline - inner_outline)
 
-def get_cuts():
-    outline = get_outline()
 
+def get_main_board():
     holes = []
     pieces = []
     for piece_x, piece_y in enum_pieces():
@@ -178,21 +174,13 @@ def get_cuts():
         holes = compose(holes, slot_line.buffer(slots_line_height / 2).union(compose(slot_pieces)).buffer(4).buffer(-4))
         pieces = compose(pieces, slot_pieces)
 
-    return compose(
+    cuts = compose(
         pieces,
-        [ g - holes for g in all_geoms(outline) ],
-        translate(outline, xoff=total_width),
-        translate(get_outline(border=False), xoff=2*total_width)
+        [ g - holes for g in all_geoms(get_outline()) ]
     )
 
 
-def get_all_paths():
-    title = compose(
-        text("Caminhos   ", scale=1, translate=(2.5*total_width, .4 * total_height)),
-        text("   Malucos", scale=1, translate=(2.5*total_width,  .6 * total_height)),
-    )
-
-    all_paths = list(connection_paths()) + [title]
+    all_paths = list(connection_paths())
 
     for (piece_x, piece_y), piece_links in zip(enum_pieces(), enum_piece_links()):
         all_paths += list(piece_paths(piece_x, piece_y, piece_links))
@@ -200,11 +188,9 @@ def get_all_paths():
     all_paths = unary_union(all_paths)
 
 
-    ret = [all_paths]
+    all_paths_offsets = [all_paths]
     for offset in parallel_distances:
-        ret.append(all_paths.buffer(offset).boundary)
-
-    signature = text("Tio Paulo - Junho/2019", scale=.2, translate=(3*total_width - handle_size - 2 * piece_spacing, total_height - 2 * piece_spacing), align=-1, valign=-1)
+        all_paths_offsets.append(all_paths.buffer(offset).boundary)
 
     slot_piece_labels = [
         text(chr(ord("A") + i),
@@ -216,48 +202,88 @@ def get_all_paths():
         )
         for i in range(3*grid_size)
     ]
+    engravings = compose(
+        all_paths_offsets,
+        slot_piece_labels)
 
-    return compose(ret, signature, slot_piece_labels)
+    return  cuts, engravings
+
+
+def get_back_board():
+    return get_outline(), []
+
+def get_front_board():
+    title = compose(
+        text("Caminhos   ", scale=1, translate=(total_width/2, .4 * total_height)),
+        text("   Malucos", scale=1, translate=(total_width/2,  .6 * total_height)),
+    )
+
+    signature = text("Tio Paulo - Junho/2019", scale=.2, translate=(total_width - handle_size - 2 * piece_spacing, total_height - 2 * piece_spacing), align=-1, valign=-1)
+
+    return get_outline(border=False), compose(title, signature)
 
 
 def main():
-    cuts = get_cuts()
-    paths = get_all_paths()
+    all_cuts = []
+    all_engravings = []
 
-    with cairo.SVGSurface("preview.svg", 3*total_width, total_height) as surface:
-        surface.set_document_unit(cairo.SVGUnit.MM)
-        context = cairo.Context(surface)
+    parts = {
+        "main": get_main_board(),
+        "back": get_back_board(),
+        "front": get_front_board(),
+        "all": (all_cuts, all_engravings)
+    }
 
-        draw_shape(context, cuts)
-        context.set_source_rgba(.82, .71, .55, 1)
-        context.fill()
+    x_offset = 0
+    for name, (cuts, engravings) in parts.items():
+        cuts = compose(cuts)
+        engravings = compose(engravings)
 
-        draw_shape(context, unary_union(cuts.boundary))
-        context.set_source_rgba(0, 0, 0, 1)
-        context.set_line_width(.2)
-        context.stroke()
+        svg_width = total_width
+        svg_height = total_height
 
-        draw_shape(context, paths)
-        context.set_source_rgba(0, 0, 1, .5)
-        context.set_line_width(.2)
-        context.stroke()
+        if name == "all":
+            svg_width = x_offset
+        else:
+            all_cuts.append(translate(cuts, xoff=x_offset))
+            all_engravings.append(translate(engravings, xoff=x_offset))
+            x_offset += total_width
 
-    with cairo.SVGSurface("cut.svg", 3*total_width, total_height) as surface:
-        surface.set_document_unit(cairo.SVGUnit.MM)
-        context = cairo.Context(surface)
 
-        draw_shape(context, unary_union(cuts.boundary))
-        context.set_source_rgba(0, 0, 0, 1)
-        context.set_line_width(.1)
-        context.stroke()
+        with cairo.SVGSurface(f"out/{name}-preview.svg", svg_width, svg_height) as surface:
+            surface.set_document_unit(cairo.SVGUnit.MM)
+            context = cairo.Context(surface)
 
-    with cairo.SVGSurface("draw.svg", 3*total_width, total_height) as surface:
-        surface.set_document_unit(cairo.SVGUnit.MM)
-        context = cairo.Context(surface)
+            draw_shape(context, cuts)
+            context.set_source_rgb(.82, .71, .55)
+            context.fill()
 
-        draw_shape(context, paths)
-        context.set_source_rgba(0, 0, 1, 1)
-        context.set_line_width(.2)
-        context.stroke()
+            draw_shape(context, unary_union(cuts.boundary))
+            context.set_source_rgb(0, 0, 0)
+            context.set_line_width(.2)
+            context.stroke()
+
+            draw_shape(context, engravings)
+            context.set_source_rgb(0.23, 0.13, 0.06)
+            context.set_line_width(.2)
+            context.stroke()
+
+        with cairo.SVGSurface(f"out/{name}-cut.svg", svg_width, svg_height) as surface:
+            surface.set_document_unit(cairo.SVGUnit.MM)
+            context = cairo.Context(surface)
+
+            draw_shape(context, unary_union(cuts.boundary))
+            context.set_source_rgba(0, 0, 0, 1)
+            context.set_line_width(.1)
+            context.stroke()
+
+        with cairo.SVGSurface(f"out/{name}-engraving.svg", svg_width, svg_height) as surface:
+            surface.set_document_unit(cairo.SVGUnit.MM)
+            context = cairo.Context(surface)
+
+            draw_shape(context, engravings)
+            context.set_source_rgba(0, 0, 1, 1)
+            context.set_line_width(.2)
+            context.stroke()
 
 main()

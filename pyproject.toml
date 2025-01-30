@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "crazy-paths"
+version = "0.1.0"
+description = "Knowckoff of the Calliope Tsuro board game"
+authors = ["Paulo Costa <eu@paulo.costa.nom.br>"]
+license = "Unlicense"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+pycairo = "^1.27.0"
+shapely = "^2.0.6"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
